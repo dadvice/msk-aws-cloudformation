@@ -1,0 +1,19 @@
+{
+    "Parameters": {
+        "commands": [
+		    "#!/bin/bash",
+            "sudo yum -y update",
+            "sudo yum install -y java-17-amazon-corretto.x86_64",
+            "cd /home/ec2-user/",
+			"wget -q https://archive.apache.org/dist/kafka/3.5.0/kafka_2.13-3.5.0.tgz",
+            "tar -zxf kafka_2.13-3.5.0.tgz",
+            "cd /home/ec2-user/kafka_2.13-3.5.0/libs",
+            "wget -q https://github.com/aws/aws-msk-iam-auth/releases/download/v1.1.1/aws-msk-iam-auth-1.1.1-all.jar",
+            "cd /home/ec2-user/kafka_2.13-3.5.0/bin/",
+            "echo 'security.protocol=SASL_SSL' > client.properties",
+            "echo 'sasl.mechanism=AWS_MSK_IAM' >> client.properties",
+            "echo 'sasl.jaas.config=software.amazon.msk.auth.iam.IAMLoginModule required;' >> client.properties",
+            "echo 'sasl.client.callback.handler.class=software.amazon.msk.auth.iam.IAMClientCallbackHandler' >> client.properties"
+        ]
+    }
+}

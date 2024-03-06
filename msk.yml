@@ -1,0 +1,21 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Creacion MSK CloudFormation
+
+Resources:
+  MSK:
+    Type: AWS::MSK::Cluster
+    Properties:
+     ClientAuthentication:
+      Sasl:
+        Iam:
+          Enabled: true
+     BrokerNodeGroupInfo: 
+      ClientSubnets: 
+                - <SUBNET_1>
+                - <SUBNET_2>
+      InstanceType: kafka.m5.large
+     ClusterName: msk-cluster-test
+     KafkaVersion: 2.2.1
+     NumberOfBrokerNodes: 2
+     Tags: 
+       "msk:project-id": "msk-ec2-cloudformation"

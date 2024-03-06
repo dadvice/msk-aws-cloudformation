@@ -1,0 +1,206 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Creacion VPC CloudFormation
+
+Resources:
+  Vpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.192.0.0/16
+      InstanceTenancy: default
+      Tags: 
+        - Key: msk:project-id
+          Value: msk-ec2-cloudformation
+        - Key: Name
+          Value: vpc-vpn-msk
+  
+  SubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone : eu-west-3a
+      CidrBlock : 10.192.10.0/24
+      VpcId : !Ref Vpc
+      MapPublicIpOnLaunch: true
+      Tags: 
+        - Key: msk:project-id
+          Value: msk-ec2-cloudformation
+        - Key: Name
+          Value: subnet-private-msk-a
+          
+  SubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone : eu-west-3b
+      CidrBlock : 10.192.16.0/24
+      VpcId : !Ref Vpc
+      Tags: 
+        - Key: msk:project-id
+          Value: msk-ec2-cloudformation
+        - Key: Name
+          Value: subnet-private-msk-b
+          
+  SubnetC:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone : eu-west-3c
+      CidrBlock : 10.192.32.0/24
+      VpcId : !Ref Vpc
+      Tags: 
+        - Key: msk:project-id
+          Value: msk-ec2-cloudformation
+        - Key: Name
+          Value: subnet-private-msk-c
+      
+  RouteTablePublic: 
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Vpc
+      Tags: 
+        - Key: msk:project-id
+          Value: msk-ec2-cloudformation
+        - Key: Name
+          Value: rtpublic-vpc-msk
+          
+  RouteTablePrivate: 
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Vpc
+      Tags: 
+        - Key: msk:project-id
+          Value: msk-ec2-cloudformation
+        - Key: Name
+          Value: rtprivate-vpc-msk
+      
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags: 
+        - Key: Name
+          Value: ig-vpc-msk
+        - Key: msk:project-id
+          Value: msk-ec2-cloudformation
+
+  VPCGatewayAttachment:
+    Type: "AWS::EC2::VPCGatewayAttachment"
+    Properties:
+      VpcId: !Ref Vpc
+      InternetGatewayId: !Ref InternetGateway
+
+  InternetRoute:
+    Type: "AWS::EC2::Route"
+    Properties:
+      DestinationCidrBlock: "0.0.0.0/0"
+      GatewayId: !Ref InternetGateway
+      RouteTableId: !Ref RouteTablePublic
+         
+  InternetRouteSubnetPrivate:
+    Type: "AWS::EC2::Route"
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref myNatGateway
+      RouteTableId: !Ref RouteTablePrivate
+
+  SubnetARouteTableAssociation:
+    Type: "AWS::EC2::SubnetRouteTableAssociation"
+    Properties:
+      RouteTableId: !Ref RouteTablePublic
+      SubnetId: !Ref SubnetA
+  
+  SubnetBRouteTableAssociation:
+    Type: "AWS::EC2::SubnetRouteTableAssociation"
+    Properties:
+      RouteTableId: !Ref RouteTablePrivate
+      SubnetId: !Ref SubnetB
+  
+  SubnetCRouteTableAssociation:
+    Type: "AWS::EC2::SubnetRouteTableAssociation"
+    Properties:
+      RouteTableId: !Ref RouteTablePrivate
+      SubnetId: !Ref SubnetC
+  
+  NatGateway1EIP:
+    Type: AWS::EC2::EIP
+    DependsOn: VPCGatewayAttachment
+    Properties:
+      Domain: vpc
+  
+  myNatGateway:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NatGateway1EIP.AllocationId
+      SubnetId: !Ref SubnetA
+      Tags: 
+       - Key: Name
+         Value: natgateway.public
+       - Key: msk:project-id
+         Value: msk-ec2-cloudformation
+  
+  EC2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-089c89a80285075f7
+      InstanceType: t2.micro
+      KeyName: ec2-test-formation
+      AvailabilityZone: eu-west-3b
+      SubnetId: !Ref SubnetB
+      SecurityGroupIds:
+        - !Ref SGvpc
+      Tags: 
+      - Key: Name
+        Value: ec2-msk-linux
+      - Key: msk:project-id
+        Value: msk-ec2-cloudformation
+  SGvpc:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !Ref Vpc
+      GroupDescription: "Allow inbound and outbound traffic"
+      SecurityGroupIngress:
+        IpProtocol: -1
+        CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+        IpProtocol: -1
+        CidrIp: 0.0.0.0/0
+      Tags: 
+        - Key: Name
+          Value: sg-vpc-msk
+        - Key: msk:project-id
+          Value: msk-ec2-cloudformation
+  
+  ClientVpnEndpoint:
+    Type: AWS::EC2::ClientVpnEndpoint
+    Properties:
+      AuthenticationOptions:
+        - Type: "certificate-authentication"
+          MutualAuthentication:
+            ClientRootCertificateChainArn: "<ARN_CERTIFICATE>"
+      ClientCidrBlock: 10.192.0.0/22
+      ConnectionLogOptions:
+        Enabled: false
+      SecurityGroupIds:
+        - !Ref SGvpc
+      SelfServicePortal: ''
+      ServerCertificateArn: "<ARN_CERTIFICATE>"
+      SplitTunnel: true
+      TagSpecifications:
+        - ResourceType: "client-vpn-endpoint"
+          Tags:
+            - Key: Name
+              Value: vpc-vpn-client
+            - Key: msk:project-id
+              Value: msk-ec2-cloudformation
+      TransportProtocol: udp
+      VpcId: !Ref Vpc
+      VpnPort: 1194
+    
+  ClientVpnNetworkAssociation:
+    Type: AWS::EC2::ClientVpnTargetNetworkAssociation
+    Properties:
+      ClientVpnEndpointId: !Ref ClientVpnEndpoint
+      SubnetId: !Ref SubnetA
+        
+  VpnClientAuthRule:
+    Type: "AWS::EC2::ClientVpnAuthorizationRule"
+    Properties:
+      ClientVpnEndpointId: !Ref ClientVpnEndpoint
+      TargetNetworkCidr: 10.192.0.0/16
+      AuthorizeAllGroups: true
